@@ -1,8 +1,13 @@
 import streamlit as st
 import requests
 import os
+import re  # Para validação do formato do ID
 
-# URL Render (usando variável de ambiente)
+# Função para validar ObjectId (24 caracteres hexadecimais)
+def is_valid_objectid(oid):
+    return bool(re.fullmatch(r'[0-9a-fA-F]{24}', oid))
+
+# URL Render
 API_URL = os.getenv("API_URL", "https://aps-3-flask-rest-mongo-garciapp.onrender.com")
 
 # Configurações da página
@@ -26,17 +31,13 @@ if categoria == "Usuários":
         if response.status_code == 200:
             usuarios = response.json()
             if usuarios:
-                for usuario in usuarios:
-                    st.markdown(f"**ID:** {usuario['_id']}")
-                    st.markdown(f"**Nome:** {usuario['nome']}")
-                    st.markdown(f"**CPF:** {usuario['cpf']}")
-                    st.markdown(f"**Data de Nascimento:** {usuario['data_nascimento']}")
-                    st.markdown("---")
+                # Exibir em uma tabela para melhor visualização
+                st.dataframe(usuarios)
             else:
                 st.info("Nenhum usuário encontrado.")
         else:
-            st.error("Não foi possível carregar os usuários.")
-
+            st.error(f"Não foi possível carregar os usuários. Status Code: {response.status_code}")
+    
     elif operacao_usuario == "Adicionar":
         st.subheader("Adicionar Novo Usuário")
         with st.form(key="inserir_usuario"):
@@ -57,10 +58,10 @@ if categoria == "Usuários":
                     st.success("Usuário adicionado com sucesso!")
                 else:
                     erro = response.json().get('erro', 'Erro desconhecido.')
-                    st.error(f"Falha ao adicionar usuário: {erro}")
+                    st.error(f"Falha ao adicionar usuário: {erro} (Status Code: {response.status_code})")
             else:
                 st.warning("Por favor, preencha todos os campos.")
-
+    
     elif operacao_usuario == "Atualizar":
         st.subheader("Atualizar Usuário")
         with st.form(key="atualizar_usuario_form"):
@@ -72,42 +73,47 @@ if categoria == "Usuários":
             
         if submit_button:
             if usuario_id and (nome or cpf or data_nascimento):
-                usuario_atualizado = {}
-                if nome:
-                    usuario_atualizado["nome"] = nome
-                if cpf:
-                    usuario_atualizado["cpf"] = cpf
-                if data_nascimento:
-                    usuario_atualizado["data_nascimento"] = data_nascimento
-                
-                response = requests.put(f"{API_URL}/usuarios/{usuario_id}", json=usuario_atualizado)
-                if response.status_code == 200:
-                    st.success("Usuário atualizado com sucesso!")
+                if not is_valid_objectid(usuario_id):
+                    st.error("ID do usuário inválido. Por favor, insira um ID válido de 24 caracteres hexadecimais.")
                 else:
-                    erro = response.json().get('erro', 'Erro desconhecido.')
-                    st.error(f"Falha ao atualizar usuário: {erro}")
+                    usuario_atualizado = {}
+                    if nome:
+                        usuario_atualizado["nome"] = nome
+                    if cpf:
+                        usuario_atualizado["cpf"] = cpf
+                    if data_nascimento:
+                        usuario_atualizado["data_nascimento"] = data_nascimento
+                
+                    response = requests.put(f"{API_URL}/usuarios/{usuario_id}", json=usuario_atualizado)
+                    if response.status_code == 200:
+                        st.success("Usuário atualizado com sucesso!")
+                    else:
+                        erro = response.json().get('erro', 'Erro desconhecido.')
+                        st.error(f"Falha ao atualizar usuário: {erro} (Status Code: {response.status_code})")
             else:
                 st.warning("Por favor, preencha o ID do usuário e pelo menos um campo para atualização.")
-
+    
     elif operacao_usuario == "Deletar":
         st.subheader("Deletar Usuário")
         with st.form(key="deletar_usuario_form"):
             usuario_id_deletar = st.text_input("ID do Usuário a ser deletado", key="usuario_id_deletar")
+            confirmacao = st.checkbox("Tem certeza que deseja deletar este usuário?", key="confirm_delete_usuario")
             submit_button = st.form_submit_button("Deletar")
             
         if submit_button:
-            if usuario_id_deletar:
-                confirmacao = st.warning("Tem certeza que deseja deletar este usuário?", icon="⚠️")
-                confirmar = st.button("Confirmar Deleção")
-                if confirmar:
-                    response = requests.delete(f"{API_URL}/usuarios/{usuario_id_deletar}")
-                    if response.status_code == 200:
-                        st.success("Usuário deletado com sucesso!")
-                    else:
-                        erro = response.json().get('erro', 'Erro desconhecido.')
-                        st.error(f"Falha ao deletar usuário: {erro}")
-            else:
+            if not usuario_id_deletar:
                 st.warning("Por favor, insira o ID do usuário a ser deletado.")
+            elif not confirmacao:
+                st.warning("Por favor, confirme a deleção marcando a caixa de confirmação.")
+            elif not is_valid_objectid(usuario_id_deletar):
+                st.error("ID do usuário inválido. Por favor, insira um ID válido de 24 caracteres hexadecimais.")
+            else:
+                response = requests.delete(f"{API_URL}/usuarios/{usuario_id_deletar}")
+                if response.status_code == 200:
+                    st.success("Usuário deletado com sucesso!")
+                else:
+                    erro = response.json().get('erro', 'Erro desconhecido.')
+                    st.error(f"Falha ao deletar usuário: {erro} (Status Code: {response.status_code})")
 
 # ----------------- Bicicletas -----------------
 
@@ -123,18 +129,12 @@ elif categoria == "Bicicletas":
         if response.status_code == 200:
             bikes = response.json()
             if bikes:
-                for bike in bikes:
-                    st.markdown(f"**ID:** {bike['_id']}")
-                    st.markdown(f"**Marca:** {bike['marca']}")
-                    st.markdown(f"**Modelo:** {bike['modelo']}")
-                    st.markdown(f"**Cidade:** {bike['cidade']}")
-                    st.markdown(f"**Status:** {bike['status']}")
-                    st.markdown("---")
+                st.dataframe(bikes)
             else:
                 st.info("Nenhuma bicicleta encontrada.")
         else:
-            st.error("Não foi possível carregar as bicicletas.")
-
+            st.error(f"Não foi possível carregar as bicicletas. Status Code: {response.status_code}")
+    
     elif operacao_bicicleta == "Adicionar":
         st.subheader("Adicionar Nova Bicicleta")
         with st.form(key="inserir_bike_form"):
@@ -157,10 +157,10 @@ elif categoria == "Bicicletas":
                     st.success("Bicicleta adicionada com sucesso!")
                 else:
                     erro = response.json().get('erro', 'Erro desconhecido.')
-                    st.error(f"Falha ao adicionar bicicleta: {erro}")
+                    st.error(f"Falha ao adicionar bicicleta: {erro} (Status Code: {response.status_code})")
             else:
                 st.warning("Por favor, preencha todos os campos.")
-
+    
     elif operacao_bicicleta == "Atualizar":
         st.subheader("Atualizar Bicicleta")
         with st.form(key="atualizar_bike_form"):
@@ -173,44 +173,49 @@ elif categoria == "Bicicletas":
             
         if submit_button:
             if bike_id and (marca or modelo or cidade or status):
-                bike_atualizada = {}
-                if marca:
-                    bike_atualizada["marca"] = marca
-                if modelo:
-                    bike_atualizada["modelo"] = modelo
-                if cidade:
-                    bike_atualizada["cidade"] = cidade
-                if status:
-                    bike_atualizada["status"] = status
-                
-                response = requests.put(f"{API_URL}/bikes/{bike_id}", json=bike_atualizada)
-                if response.status_code == 200:
-                    st.success("Bicicleta atualizada com sucesso!")
+                if not is_valid_objectid(bike_id):
+                    st.error("ID da bicicleta inválido. Por favor, insira um ID válido de 24 caracteres hexadecimais.")
                 else:
-                    erro = response.json().get('erro', 'Erro desconhecido.')
-                    st.error(f"Falha ao atualizar bicicleta: {erro}")
+                    bike_atualizada = {}
+                    if marca:
+                        bike_atualizada["marca"] = marca
+                    if modelo:
+                        bike_atualizada["modelo"] = modelo
+                    if cidade:
+                        bike_atualizada["cidade"] = cidade
+                    if status:
+                        bike_atualizada["status"] = status
+                
+                    response = requests.put(f"{API_URL}/bikes/{bike_id}", json=bike_atualizada)
+                    if response.status_code == 200:
+                        st.success("Bicicleta atualizada com sucesso!")
+                    else:
+                        erro = response.json().get('erro', 'Erro desconhecido.')
+                        st.error(f"Falha ao atualizar bicicleta: {erro} (Status Code: {response.status_code})")
             else:
                 st.warning("Por favor, insira o ID da bicicleta e pelo menos um campo para atualização.")
-
+    
     elif operacao_bicicleta == "Deletar":
         st.subheader("Deletar Bicicleta")
         with st.form(key="deletar_bike_form"):
             bike_id_deletar = st.text_input("ID da Bicicleta a ser deletada", key="bike_id_deletar")
+            confirmacao = st.checkbox("Tem certeza que deseja deletar esta bicicleta?", key="confirm_delete_bike")
             submit_button = st.form_submit_button("Deletar")
             
         if submit_button:
-            if bike_id_deletar:
-                confirmacao = st.warning("Tem certeza que deseja deletar esta bicicleta?", icon="⚠️")
-                confirmar = st.button("Confirmar Deleção")
-                if confirmar:
-                    response = requests.delete(f"{API_URL}/bikes/{bike_id_deletar}")
-                    if response.status_code == 200:
-                        st.success("Bicicleta deletada com sucesso!")
-                    else:
-                        erro = response.json().get('erro', 'Erro desconhecido.')
-                        st.error(f"Falha ao deletar bicicleta: {erro}")
-            else:
+            if not bike_id_deletar:
                 st.warning("Por favor, insira o ID da bicicleta a ser deletada.")
+            elif not confirmacao:
+                st.warning("Por favor, confirme a deleção marcando a caixa de confirmação.")
+            elif not is_valid_objectid(bike_id_deletar):
+                st.error("ID da bicicleta inválido. Por favor, insira um ID válido de 24 caracteres hexadecimais.")
+            else:
+                response = requests.delete(f"{API_URL}/bikes/{bike_id_deletar}")
+                if response.status_code == 200:
+                    st.success("Bicicleta deletada com sucesso!")
+                else:
+                    erro = response.json().get('erro', 'Erro desconhecido.')
+                    st.error(f"Falha ao deletar bicicleta: {erro} (Status Code: {response.status_code})")
 
 # ----------------- Empréstimos -----------------
 
@@ -226,17 +231,12 @@ elif categoria == "Empréstimos":
         if response.status_code == 200:
             emprestimos = response.json()
             if emprestimos:
-                for emprestimo in emprestimos:
-                    st.markdown(f"**ID Empréstimo:** {emprestimo['_id']}")
-                    st.markdown(f"**ID Usuário:** {emprestimo['id_usuario']}")
-                    st.markdown(f"**ID Bicicleta:** {emprestimo['id_bike']}")
-                    st.markdown(f"**Data Empréstimo:** {emprestimo['data_emprestimo']}")
-                    st.markdown("---")
+                st.dataframe(emprestimos)
             else:
                 st.info("Nenhum empréstimo encontrado.")
         else:
-            st.error("Não foi possível carregar os empréstimos.")
-
+            st.error(f"Não foi possível carregar os empréstimos. Status Code: {response.status_code}")
+    
     elif operacao_emprestimo == "Registrar":
         st.subheader("Registrar Novo Empréstimo")
         with st.form(key="registrar_emprestimo_form"):
@@ -280,7 +280,7 @@ elif categoria == "Empréstimos":
                     st.success("Empréstimo registrado com sucesso!")
                 else:
                     erro = response.json().get('erro', 'Erro desconhecido.')
-                    st.error(f"Falha ao registrar empréstimo: {erro}")
+                    st.error(f"Falha ao registrar empréstimo: {erro} (Status Code: {response.status_code})")
             else:
                 st.warning("Por favor, selecione um usuário e uma bicicleta disponíveis.")
 
@@ -303,18 +303,18 @@ elif categoria == "Empréstimos":
                 st.error("Não foi possível carregar os empréstimos.")
                 emprestimo_id = None
 
+            confirmacao = st.checkbox("Tem certeza que deseja encerrar este empréstimo?", key="confirm_delete_emprestimo")
             submit_button = st.form_submit_button("Encerrar Empréstimo")
             
         if submit_button:
-            if emprestimo_id:
-                confirmacao = st.warning("Tem certeza que deseja encerrar este empréstimo?", icon="⚠️")
-                confirmar = st.button("Confirmar Encerramento")
-                if confirmar:
-                    response = requests.delete(f"{API_URL}/emprestimos/{emprestimo_id}")
-                    if response.status_code == 200:
-                        st.success("Empréstimo encerrado com sucesso!")
-                    else:
-                        erro = response.json().get('erro', 'Erro desconhecido.')
-                        st.error(f"Falha ao encerrar empréstimo: {erro}")
-            else:
+            if not emprestimo_id:
                 st.warning("Por favor, selecione um empréstimo para encerrar.")
+            elif not confirmacao:
+                st.warning("Por favor, confirme a ação marcando a caixa de confirmação.")
+            else:
+                response = requests.delete(f"{API_URL}/emprestimos/{emprestimo_id}")
+                if response.status_code == 200:
+                    st.success("Empréstimo encerrado com sucesso!")
+                else:
+                    erro = response.json().get('erro', 'Erro desconhecido.')
+                    st.error(f"Falha ao encerrar empréstimo: {erro} (Status Code: {response.status_code})")
