@@ -1,8 +1,9 @@
 import streamlit as st
 import requests
+import os
 
-# URL Render
-API_URL = "https://aps-3-flask-rest-mongo-garciapp.onrender.com"
+# URL Render (usando variável de ambiente)
+API_URL = os.getenv("API_URL", "https://aps-3-flask-rest-mongo-garciapp.onrender.com")
 
 # Configurações da página
 st.set_page_config(page_title="Aluguel de Bicicletas", layout="wide")
